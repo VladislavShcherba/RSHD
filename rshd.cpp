@@ -708,8 +708,8 @@ void
     }
 
     debug("Sending null byte result...");
-    buff[0]=0;
-    if(send(rshClient, buff, 1, 0) < 1)
+    char null_byte[1] = {0};
+    if(send(rshClient, null_byte, 1, 0) < 1)
     {
         error("Error sending result status.", 0);
         return;
