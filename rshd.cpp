@@ -986,6 +986,7 @@ void
         error("The WINDIR environment variable is not set!");
     char rhosts[256];
     strcpy(rhosts, windir);
+	strcat(rhosts,"\\");
     strcat(rhosts, RHOSTS);
     if(debugFlag)
         fprintf(stderr, "[%d] Loading %s...\n", client, rhosts);
