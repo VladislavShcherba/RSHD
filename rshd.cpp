@@ -47,6 +47,7 @@ struct linger linger;
 struct _rhosts
 {
     char* hostname;
+	char* username;
     struct _rhosts* next;
 }* rhostsList=NULL;
 
@@ -536,36 +537,23 @@ int
     return 1;
 }
 
-
-// userNameCheck //////////////////////////////////////////////////////////////
+// hostAndUserCheck //////////////////////////////////////////////////////////////
 //
-// performs a security check on the remote username;
-// normally, it should check the .rhosts file for allowed users
-//
-int
-    userNameCheck (char*)
-{
-    return 1; // no check for now 
-}
-
-
-// hostNameCheck //////////////////////////////////////////////////////////////
-//
-// performs a security check on the remote hostname;
-// normally, the host should be listed in the .rhosts file
+// performs a security check on the remote hostname, username;
+// normally, the host and user should be listed in the .rhosts file
 //
 int
-    hostNameCheck (char* hostname)
+    hostAndUserCheck (char* hostname, char* username)
 {
-    debug("Checking host against the .rhosts file...");
+    debug("Checking host and user against the .rhosts file...");
     struct _rhosts* ptr=rhostsList;
     while(ptr)
     {
-        if(!strcmpi(ptr->hostname, hostname) || !strcmpi(ptr->hostname, "+"))
+        if(!strcmpi(ptr->hostname, hostname) && !strcmpi(ptr->username, username) || !strcmpi(ptr->hostname, "+"))
             return 1;
         ptr=ptr->next;
     }
-    fprintf(stderr, "[%d] Access denied to host %s...\n", client, hostname);
+    fprintf(stderr, "[%d] Access denied to host %s - %s...\n", client, hostname, username);
     return 0;
 }
 
@@ -581,7 +569,7 @@ int
 // information is available (the default is to let people pass)
 //
 int
-    clientCheck (SOCKET rshClient)
+    clientCheck (SOCKET rshClient, char* username)
 {
     // get the necessary info on the client socket 
     struct sockaddr_in cliaddr;
@@ -615,7 +603,7 @@ int
     if(debugFlag)
         fprintf(stderr, "[%d] Client host: %s...\n", client,
             remoteHostPtr->h_name);
-    return hostNameCheck(remoteHostPtr->h_name);
+    return hostAndUserCheck(remoteHostPtr->h_name, username);
 }
 
 
@@ -660,8 +648,10 @@ void
     }
     if(debugFlag)
         fprintf(stderr, "[%d] Remote user name: %s\n", client, buff+crt);
-    if(!userNameCheck(buff+crt))
-        return;
+	char username[1024];
+	strcpy(username, buff+crt);
+    /*if(!userNameCheck(buff+crt))
+        return;*/
     while(buff[crt++]);
     // ignore the local user name 
     if(!buff[crt])
@@ -693,7 +683,7 @@ void
 
         // Check to see if the connected system is in the .rhosts file.
     debug("Checking client...");
-    if(!clientCheck(rshClient))
+    if(!clientCheck(rshClient, username))
     {
                 char buff[50];
                 // Error condition:  Permission denied for remote system access
@@ -722,7 +712,6 @@ void
         else
                 // Process the rcp request
                 rcpCommand( rshClient, rshClientErr, buff+crt );
-
 }
 
 
@@ -1009,14 +998,27 @@ void
             continue; // empty line 
         char* hostname=(char*)calloc(sizeof(char), i+1);
         strncpy(hostname, buff, i);
+
+		while(buff[i]==' ' || buff[i]=='\t')
+			i++; // skip spaces between hostname and username
+
+		int j = i; //for now i is a position where username starts
+
+		while(buff[j] && buff[j]!=' ' && buff[j]!='\t' && buff[j]!='\n')
+            j++;
+		//for now j is a position straight after username
+		char* username=(char*)calloc(sizeof(char),j-i+1);
+		strncpy(username, buff+i, j-i);
+
         struct _rhosts* rhostCell=new struct _rhosts;
         if(!rhostCell)
             error("Heap overflow!");
         rhostCell->next=rhostsList;
         rhostCell->hostname=hostname;
+		rhostCell->username=username;
         rhostsList=rhostCell;
         if(debugFlag)
-            fprintf(stderr, "[%d] Trusting host %s...\n", client, hostname);
+            fprintf(stderr, "[%d] Trusting host %s - %s...\n", client, hostname, username);
     }
     fclose(rhostsFile);
 }
